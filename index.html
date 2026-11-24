@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>店面庫存智慧盤點系統</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .control-panel {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .action-box {
+            background: #e8f6f3;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #1abc9c;
+        }
+        .merge-box {
+            background: #f4f1ea;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px dashed #d35400;
+        }
+        
+        .box-title {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 16px;
+            color: #2c3e50;
+            font-weight: bold;
+            border-bottom: 2px solid rgba(0,0,0,0.1);
+            padding-bottom: 5px;
+        }
+
+        .file-inputs {
+            display: flex;
+            gap: 15px;
+            flex-direction: column;
+            margin-bottom: 15px;
+        }
+        .file-input-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #16a085;
+        }
+        .merge-box .file-input-group label {
+            color: #d35400;
+        }
+        .file-input-group input {
+            width: 100%;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button.action-btn {
+            padding: 12px 15px;
+            background-color: #16a085;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+            white-space: nowrap;
+            flex: 1;
+        }
+        button.action-btn:hover { background-color: #1abc9c; }
+
+        button.export-btn { background-color: #f39c12; }
+        button.export-btn:hover { background-color: #e67e22; }
+
+        button.print-btn { background-color: #2c3e50; }
+        button.print-btn:hover { background-color: #34495e; }
+
+        button.reset-btn { background-color: #c0392b; }
+        button.reset-btn:hover { background-color: #e74c3c; }
+
+        .save-status {
+            text-align: center;
+            font-size: 13px;
+            color: #16a085;
+            background: #e8f6f3;
+            border-radius: 6px;
+            padding: 6px 10px;
+            margin-bottom: 15px;
+        }
+        .save-status.warn { color: #c0392b; background: #fadbd8; }
+
+        button.merge-btn { background-color: #8e44ad; width: 100%;}
+        button.merge-btn:hover { background-color: #9b59b6; }
+        
+        /* 倉庫專用搜尋區塊 */
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            background: #eaf2f8;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #3498db;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 12px 15px;
+            font-size: 18px;
+            border: 2px solid #bdc3c7;
+            border-radius: 6px;
+            transition: border 0.3s;
+        }
+        .search-box input:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+        .search-box button {
+            padding: 12px 20px;
+            background-color: #7f8c8d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .search-box button:hover { background-color: #95a5a6; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px 12px;
+            text-align: center;
+        }
+        th {
+            background-color: #34495e;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+        
+        /* 盤點輸入框 */
+        input[type="number"] {
+            width: 90px;
+            padding: 8px;
+            text-align: center;
+            font-size: 16px;
+            border: 2px solid #bdc3c7;
+            border-radius: 4px;
+            transition: border 0.3s;
+        }
+        input[type="number"]:focus {
+            border-color: #3498db;
+            outline: none;
+            background-color: #e8f6f3;
+        }
+
+        /* 狀態顏色 */
+        .shortage { color: #e74c3c; font-weight: bold; }
+        .surplus { color: #3498db; font-weight: bold; }
+        .match { color: #27ae60; font-weight: bold; }
+
+        /* 前20大稽查重點標示 */
+        .top-20-row { background-color: #fff3cd !important; }
+        .alert-badge {
+            background-color: #e74c3c;
+            color: white;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 8px;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+        
+        .instruction {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+            font-size: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .control-panel { grid-template-columns: 1fr; }
+            .search-box { flex-direction: column; }
+        }
+
+        /* ========== PDF與列印專用樣式 ========== */
+        @media print {
+            body {
+                background-color: white;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .container {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+                max-width: 100%;
+            }
+            .control-panel, .search-box, .instruction, .save-status {
+                display: none !important;
+            }
+            input[type="number"] {
+                border: none;
+                background: transparent;
+                font-weight: bold;
+                font-size: 16px;
+            }
+            th {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📦 店面專屬庫存盤點報告</h1>
+    <div class="instruction">
+        門市人員可直接下滑盤點；倉庫人員可利用下方「搜尋列」快速找貨。
+    </div>
+    <div id="saveStatus" class="save-status">💾 輸入的資料會自動存在這台裝置的瀏覽器中，不會上傳到任何地方。</div>
+
+    <div class="control-panel">
+        <div class="action-box">
+            <h3 class="box-title">📊 步驟 1：系統庫存比對</h3>
+            <div class="file-inputs" style="flex-direction: row; gap: 15px;">
+                <div class="file-input-group" style="flex: 1;">
+                    <label>上傳即時期間庫存表</label>
+                    <input type="file" id="fileStock" accept=".csv, .xlsx, .xls, .ods">
+                </div>
+                <div class="file-input-group" style="flex: 1;">
+                    <label>上傳金額排序表 (取前20)</label>
+                    <input type="file" id="fileTop20" accept=".csv, .xlsx, .xls, .ods">
+                </div>
+            </div>
+            <div class="button-group">
+                <button class="action-btn" id="btnCompare" onclick="compareData()">比對差異</button>
+                <button class="action-btn export-btn" onclick="exportToExcel()">📤 匯出 Excel</button>
+                <button class="action-btn print-btn" onclick="window.print()">🖨️ 儲存畫面為 PDF</button>
+                <button class="action-btn reset-btn" onclick="clearAllData()">🗑️ 清空重新盤點</button>
+            </div>
+        </div>
+
+        <div class="merge-box">
+            <h3 class="box-title">👨‍🤝‍👨 步驟 2：多人盤點合併 (選填)</h3>
+            <div class="file-inputs">
+                <div class="file-input-group">
+                    <label>上傳同事的盤點檔 (Excel)</label>
+                    <input type="file" id="fileMerge" accept=".xlsx, .xls">
+                </div>
+            </div>
+            <button class="action-btn merge-btn" id="btnMerge" onclick="mergeData()">🔄 匯入並加總數量</button>
+        </div>
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="searchInput" oninput="renderTable()" placeholder="🔍 快速搜尋：輸入項次或品名 (例如: 0316 或 達喜)...">
+        <button onclick="clearSearch()">清除重填</button>
+    </div>
+
+    <div id="tableContainer"></div>
+</div>
+
+<script>
+    window.addEventListener('error', function(e) {
+        setTimeout(() => {
+            const tc = document.getElementById('tableContainer');
+            if(tc && tc.innerHTML.trim() === '') {
+                tc.innerHTML = `<div style="color:#c0392b; text-align:center; padding:20px; border:2px dashed #e74c3c; background:#fadbd8; margin-top:20px; border-radius:8px;">
+                    <h3 style="margin-top:0;">⚠️ 哎呀！網頁程式碼出現語法錯誤</h3>
+                    <p>請檢查您的商品清單格式是否正確，或直接重新複製一次上面的完整程式碼喔！</p>
+                </div>`;
+            }
+        }, 500);
+    });
+</script>
+
+<script>
+    // 已經更新為最新版的產品名稱列表
+    const productsData = [
+        { id: "0322", name: "達喜精1L" }, { id: "0316", name: "達喜1L" }, { id: "2752", name: "興農樂無蟲250g" },
+        { id: "0472", name: "幾霸芬250ml" }, { id: "2637", name: "益直收500ml" }, { id: "3066", name: "興農農特寧SP-500g" },
+        { id: "0046", name: "興農滅多寧1L" }, { id: "2522", name: "強展500ml" }, { id: "2338", name: "硼果王" },
+        { id: "0474", name: "蟲清利1L" }, { id: "0401", name: "拜勝格500ml" }, { id: "2745", name: "金靈海20g" },
+        { id: "0388", name: "衝衝衝100ml" }, { id: "7803", name: "新猛大師" }, { id: "0438", name: "巴面通1L" },
+        { id: "2932", name: "穩煞50g" }, { id: "2933", name: "穩煞200g" }, { id: "0169", name: "速美吉隆" },
+        { id: "2865", name: "保鏢" }, { id: "3246", name: "安大收750g" }, { id: "2473", name: "新樂園2號 2.5kg" },
+        { id: "2976", name: "神真水2號(微)1L" }, { id: "2276", name: "土寶 1000ml" }, { id: "2303", name: "氨蜜樂精500g" },
+        { id: "2992", name: "神真水5號 500ml" }, { id: "2600", name: "喜多收500ml" }, { id: "2984", name: "神真水5號 1L" },
+        { id: "2983", name: "神真水1號" }, { id: "2260", name: "魔力酸 100ml" }, { id: "2589", name: "金優根(粒)1Kg" },
+        { id: "2702", name: "白拋拋" }, { id: "3483", name: "巧是猛250g" }, { id: "3556", name: "滿穗靈500g" },
+        { id: "2963", name: "善玉肥２號1L" }, { id: "2674", name: "藻興農" }, { id: "2967", name: "善玉肥１號(微)1L" },
+        { id: "2385", name: "綠源一號200g" }, { id: "2263", name: "速勃（液）50ml" }, { id: "2643", name: "豪大果50ml" },
+        { id: "2245", name: "威樂安1號500ml" }, { id: "2308", name: "沃斯鈣鎂600g" }, { id: "2318", name: "鈣鎂精靈" },
+        { id: "1318", name: "稱豐收500ml" }, { id: "1283", name: "包正青1000ml" }, { id: "1264", name: "包正青500ml" },
+        { id: "2657", name: "肽好用" }, { id: "0397", name: "固勇100ml" }, { id: "3530", name: "多保精500ml" },
+        { id: "1322", name: "封殺" }, { id: "1263", name: "紋煞寧460ml" }, { id: "1327", name: "無界限" },
+        { id: "1957", name: "螨靈光" }, { id: "2833", name: "殊立菌250g" }, { id: "3509", name: "淨果精500ml" },
+        { id: "1143", name: "永樂黴素" }, { id: "3212", name: "保粒精250g" }, { id: "3497", name: "淨果精1L" },
+        { id: "3211", name: "保粒精500g" }, { id: "3711", name: "佳銅贊" }, { id: "3036", name: "天帝掃1L" },{ id: "1375", name: "金世介勇1L" },
+        { id: "1348", name: "輝常水" }, { id: "2666", name: "油夠好用" }, { id: "3562", name: "興農寶250g" },
+        { id: "2364", name: "落青苔" }, { id: "2606", name: "果斯達2號1L" }, { id: "2012", name: "得倍好" },
+        { id: "2102", name: "沃樂肥 500g" }, { id: "0356", name: "好清去500ml" }, { id: "3049", name: "轟天雷" },{ id: "2835", name: "威力霸" },
+        { id: "3032", name: "金沙掌" }, { id: "3047", name: "清去去250ml" },{ id: "0467", name: "總將官1L" }, { id: "3050", name: "清去去 500mL" },
+        { id: "3072", name: "聖鬥士100g" }, { id: "3073", name: "聖鬥士250g" }, { id: "3543", name: "乎粒勇500ml" },
+        { id: "3533", name: "乎粒勇250ml" }, { id: "3532", name: "乎粒勇100ml" }, {  id: "3478", name: "霹靂馬150g" },
+        { id: "3662", name: "興農樂菌清250ml" }, { id: "1366", name: "疫起走露" }, { id: "1125", name: "治露寶500ml" },
+        { id: "3581", name: "戰菌100g" }, { id: "0598", name: "鐵布衫1L" }, { id: "3068", name: "特勇100g" },
+        { id: "3002", name: "好真久" }, { id: "2533", name: "加收活展250ml" }, { id: "1969", name: "穩清清" },
+        { id: "2006", name: "拳擊蟎(6入)200ml" }, { id: "2138", name: "勇壯550 3Kg" }, { id: "0445", name: "雙贏" },
+        { id: "2272", name: "巴面擋1L" }, { id: "2295", name: "特優根1L" }, { id: "3519", name: "興紗福" },
+        { id: "2708", name: "菲利瑪 700g" }, { id: "2719", name: "菲力瑪 250g" }, { id: "2714", name: "興紗文450g" },
+        { id: "1460", name: "蓋好除500ml(501)" }, { id: "3623", name: "克園草 450g" }, { id: "1621", name: "畢凋250ml" },
+        { id: "1763", name: "全清" }, { id: "3649", name: "邁草心15g(5gx3)" }, { id: "1675", name: "興農元帥500ml" },
+        { id: "1450", name: "草穩剋250ml" }, { id: "3717", name: "速威" }, { id: "3598", name: "興農生-45 900g" },
+        { id: "1805", name: "草丈根1500cc" }, { id: "1754", name: "興農春1L" }, { id: "1684", name: "樂農家3L" },
+        { id: "1809", name: "草丈根3L" }, { id: "1806", name: "草丈根5L" }, { id: "1757", name: "常好清5L" },
+        { id: "1756", name: "興農春5L（方）" }, { id: "4702", name: "蝸除900g" }, { id: "4710", name: "地掃2kg" },
+        { id: "4721", name: "興農丹3Kg" }, { id: "5070", name: "踪除龍3Kg" }, { id: "2608", name: "果斯達2號 4L" },
+        { id: "2216", name: "藻紅肥4L" }, { id: "2676", name: "藻興農4L" }, { id: "2298", name: "特優根4L" },
+        { id: "2307", name: "沃斯鈣鎂5Kg" }, { id: "2302", name: "氨蜜樂精 5Kg" }, { id: "2977", name: "神真水2號(微)4L" },
+        { id: "2990", name: "神真水5號4L" }, { id: "2968", name: "善玉肥１號(微)4L" }, { id: "2965", name: "善玉肥２號4L" },
+        { id: "3038", name: "天帝掃 3L" }, { id: "0166", name: "蟲真驚5L" }, { id: "0171", name: "速美吉隆3L" },
+        { id: "0403", name: "拜勝格3L" }, { id: "2278", name: "土寶4L" }, { id: "0600", name: "鐵布衫5L" },
+        { id: "2273", name: "巴面擋20L" }, { id: "2969", name: "善玉肥1號20L" }, { id: "2218", name: "千沃621 20L" },
+        { id: "2306", name: "沃斯鈣鎂30Kg" }, { id: "2304", name: "氨蜜樂精20Kg" }, { id: "2333", name: "蓋美320小" },
+        { id: "2979", name: "善玉肥552 200g" }, { id: "2332", name: "鉀真好小" }, { id: "2991", name: "特根生" },
+        { id: "9111", name: "興農鼠魔餌200g" }, { id: "2353", name: "蓋美萬用肥10k" }, { id: "2328", name: "蓋美特5號" },
+        { id: "2989", name: "善玉肥648 10kg" }, { id: "2015", name: "勇壯226 10Kg" }, { id: "2155", name: "勇壯超鉀10Kg" },
+        { id: "2347", name: "催金雄" }, { id: "2344", name: "鉀真好10Kg" }, { id: "2349", name: "蓋美 350　10KG" },
+        { id: "2978", name: "善玉肥552 10kg" }, { id: "2334", name: "蓋美320　10Kg" }, { id: "2680", name: "海老大20Kg" },
+        { id: "2105", name: "沃樂肥1號20Kg細粒(小顆粒)" }, { id: "2135", name: "勇壯550 20Kg" }, { id: "2423", name: "氨蜜樂特9號" },
+        { id: "2354", name: "蓋美422" }, { id: "2380", name: "蓋美525 20Kg" }, { id: "2422", name: "氨蜜樂6號20Kg" },
+        { id: "2160", name: "勇壯472 20Kg" }, { id: "2544", name: "田王鎂899 20Kg" }, { id: "2431", name: "好樂肥1號" },
+        { id: "2523", name: "寶島１１號20Kg" }, { id: "2543", name: "田王453 20Kg" }, { id: "2474", name: "新樂園1號20Kg" },
+        { id: "3248", name: "安大收25Kg" }, { id: "5710", name: "好根寶特3號" }, { id: "9589", name: "蓮霧套袋-平面下掀式(白)" },
+        { id: "9597", name: "蓮霧套袋-加大下掀開窗" }, { id: "9630", name: "蓮霧套袋 平面開窗下掀式(網紋)" }, { id: "9611", name: "香蕉套袋－立體加大黃牛皮" },
+        { id: "9612", name: "香蕉套袋－立體標準黃牛皮" }, { id: "9541", name: "愛文套袋(28x19cm)" }, { id: "9643", name: "台果愛文袋" },
+        { id: "9616", name: "特級金煌套袋(牛皮二層鐵凸)" }
+    ];
+
+    let stockData = null;  
+    let top20Data = new Set(); 
+    let userCounts = {};
+
+    // ========== 自動儲存（只存在這台裝置的瀏覽器，不會上傳） ==========
+    const STORAGE_KEY = 'jiadong_inventory_count_v1';
+
+    function formatTime(ts) {
+        const d = new Date(ts);
+        return `${d.getMonth() + 1}/${d.getDate()} ` +
+               `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function setSaveStatus(text, isWarn) {
+        const el = document.getElementById('saveStatus');
+        if (!el) return;
+        el.textContent = text;
+        el.className = 'save-status' + (isWarn ? ' warn' : '');
+    }
+
+    function saveState() {
+        try {
+            const now = Date.now();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                userCounts: userCounts,
+                stockData: stockData,
+                top20Data: Array.from(top20Data),
+                savedAt: now
+            }));
+            setSaveStatus(`💾 已自動儲存（${formatTime(now)}），重新整理或關掉網頁也不會消失。資料只存在這台裝置。`, false);
+        } catch (e) {
+            setSaveStatus('⚠️ 這個瀏覽器無法自動儲存（可能是無痕模式），請記得常按「匯出 Excel」備份！', true);
+        }
+    }
+
+    function loadState() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const saved = JSON.parse(raw);
+            userCounts = saved.userCounts || {};
+            stockData = saved.stockData || null;
+            top20Data = new Set(saved.top20Data || []);
+            const filled = Object.values(userCounts).filter(v => v !== '' && v !== null && v !== undefined).length;
+            if (saved.savedAt) {
+                setSaveStatus(`💾 已載入上次的盤點進度（${formatTime(saved.savedAt)}，已填 ${filled} 項）。要開始新的盤點請按「清空重新盤點」。`, false);
+            }
+        } catch (e) {
+            setSaveStatus('⚠️ 這個瀏覽器無法自動儲存（可能是無痕模式），請記得常按「匯出 Excel」備份！', true);
+        }
+    }
+
+    function clearAllData() {
+        if (!confirm('確定要清空所有盤點數量和庫存比對資料嗎？\n建議先按「匯出 Excel」備份。清空後無法復原。')) return;
+        userCounts = {};
+        stockData = null;
+        top20Data = new Set();
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+        document.getElementById('fileStock').value = '';
+        document.getElementById('fileTop20').value = '';
+        document.getElementById('searchInput').value = '';
+        setSaveStatus('🗑️ 已清空，可以開始新的盤點。輸入的資料會自動存在這台裝置。', false);
+        renderTable();
+    }
+
+    loadState();
+
+    function cleanString(str) {
+        if (!str) return '';
+        return String(str).replace(/\s+/g, '').toLowerCase();
+    }
+
+    function checkIsTop20(pId, productName) {
+        let isTop20 = false;
+        const cleanProductName = cleanString(productName);
+        const pIdInt = parseInt(pId, 10).toString(); 
+        
+        if (top20Data.size > 0) {
+            if (top20Data.has(pId) || top20Data.has(pIdInt)) {
+                isTop20 = true;
+            } else {
+                for (let topItem of top20Data) {
+                    if (cleanProductName === topItem || (topItem.length >= 3 && cleanProductName.length >= 3 && (cleanProductName.includes(topItem) || topItem.includes(cleanProductName)))) {
+                        isTop20 = true; break;
+                    }
+                }
+            }
+        }
+        return isTop20;
+    }
+
+    function clearSearch() {
+        document.getElementById('searchInput').value = '';
+        renderTable();
+    }
+
+    function readExcelFile(file) {
+        return new Promise((resolve, reject) => {
+            if (!file) { resolve([]); return; }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                    
+                    let headerIdx = 0;
+                    for (let i = 0; i < rows.length; i++) {
+                        const rowStr = rows[i].join("");
+                        if (rowStr.includes("項次") || rowStr.includes("品名") || rowStr.includes("名稱") || rowStr.includes("商品")) {
+                            headerIdx = i; break;
+                        }
+                    }
+                    
+                    const headers = rows[headerIdx] || [];
+                    const jsonData = [];
+                    for (let i = headerIdx + 1; i < rows.length; i++) {
+                        const row = rows[i];
+                        if (!row || row.length === 0) continue;
+                        let obj = {};
+                        headers.forEach((h, colIdx) => {
+                            if (h && typeof h === 'string') {
+                                obj[h.replace(/"/g, '').trim()] = row[colIdx];
+                            }
+                        });
+                        jsonData.push(obj);
+                    }
+                    resolve(jsonData);
+                } catch (err) { reject(err); }
+            };
+            reader.onerror = (err) => reject(err);
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    async function compareData() {
+        const fileStock = document.getElementById('fileStock').files[0];
+        const fileTop20 = document.getElementById('fileTop20').files[0];
+
+        if (!fileStock) {
+            alert('請先上傳「即時期間庫存表」，才能進行數量比對！');
+            return;
+        }
+
+        try {
+            document.getElementById('btnCompare').innerText = '資料比對中...';
+            const [rawStock, rawTop20] = await Promise.all([
+                readExcelFile(fileStock),
+                readExcelFile(fileTop20)
+            ]);
+
+            const tempStockByName = {};
+            const tempStockById = {};
+            const tempStockByIdInt = {};
+
+            rawStock.forEach(row => {
+                let rawId = String(row['項次'] || '').trim();
+                let rawName = '';
+                for (let key in row) {
+                    if (key.includes('品名') || key.includes('名稱') || key.includes('商品')) {
+                        rawName = String(row[key]).trim(); break;
+                    }
+                }
+                
+                let qty = 0;
+                for (let key in row) {
+                    if (key.includes('結存') || key === '數量' || key === '庫存') {
+                        qty = row[key]; break;
+                    }
+                }
+                if (typeof qty === 'string') qty = qty.replace(/,/g, '');
+                qty = Number(qty) || 0;
+
+                if (rawName) tempStockByName[cleanString(rawName)] = qty;
+                if (rawId) {
+                    tempStockById[rawId] = qty;
+                    tempStockByIdInt[parseInt(rawId, 10)] = qty;
+                }
+            });
+
+            stockData = {};
+            productsData.forEach(product => {
+                const pId = product.id;
+                const cleanName = cleanString(product.name);
+                const pIdInt = parseInt(pId, 10);
+                
+                let foundQty = 0;
+                let found = false;
+
+                if (tempStockByName[cleanName] !== undefined) {
+                    foundQty = tempStockByName[cleanName];
+                    found = true;
+                } else if (tempStockById[pId] !== undefined) {
+                    foundQty = tempStockById[pId];
+                    found = true;
+                } else if (!isNaN(pIdInt) && tempStockByIdInt[pIdInt] !== undefined) {
+                    foundQty = tempStockByIdInt[pIdInt];
+                    found = true;
+                }
+
+                stockData[pId] = found ? foundQty : 0;
+            });
+
+            top20Data = new Set();
+            if (rawTop20.length > 0) {
+                let amountCol = null;
+                for (let i = 0; i < Math.min(5, rawTop20.length); i++) {
+                    for (let key in rawTop20[i]) {
+                        if (key.includes('金額') || key.includes('總值') || key.includes('成本') || key.includes('小計') || key.includes('總額')) {
+                            amountCol = key;
+                            break;
+                        }
+                    }
+                    if(amountCol) break;
+                }
+
+                if (amountCol) {
+                    rawTop20.sort((a, b) => {
+                        let valA = Number(String(a[amountCol] || '0').replace(/,/g, '')) || 0;
+                        let valB = Number(String(b[amountCol] || '0').replace(/,/g, '')) || 0;
+                        return valB - valA; 
+                    });
+                }
+
+                let matchedCount = 0;
+                for (let i = 0; i < rawTop20.length; i++) {
+                    if (matchedCount >= 20) break; 
+
+                    let row = rawTop20[i];
+                    let rawId = String(row['項次'] || '').trim();
+                    let idInt = parseInt(rawId, 10).toString(); 
+
+                    let rawName = '';
+                    for (let key in row) {
+                        if (key.includes('品名') || key.includes('名稱') || key.includes('商品')) {
+                            rawName = String(row[key]).trim(); break;
+                        }
+                    }
+                    if (!rawName) {
+                        const vals = Object.values(row).filter(v => typeof v === 'string' && v.trim() !== '');
+                        if (vals.length > 0 && isNaN(Number(vals[0].replace(/,/g, '')))) rawName = vals[0];
+                    }
+                    let cleanN = cleanString(rawName);
+
+                    let isStoreProduct = false;
+                    for (let p of productsData) {
+                        let pId = p.id;
+                        let pIdInt = parseInt(pId, 10).toString();
+                        let pName = cleanString(p.name);
+
+                        if (
+                            (rawId && (pId === rawId || pIdInt === idInt)) ||
+                            (cleanN && pName && (pName === cleanN || (cleanN.length >= 3 && pName.length >= 3 && (pName.includes(cleanN) || cleanN.includes(pName)))))
+                        ) {
+                            isStoreProduct = true;
+                            break;
+                        }
+                    }
+
+                    if (isStoreProduct) {
+                        if (rawId) top20Data.add(rawId);
+                        if (idInt !== "NaN") top20Data.add(idInt);
+                        if (cleanN) top20Data.add(cleanN);
+                        matchedCount++;
+                    }
+                }
+            }
+
+            saveState();
+            renderTable();
+            document.getElementById('btnCompare').innerText = '比對差異';
+
+        } catch (error) {
+            console.error(error);
+            alert('檔案解析發生錯誤。');
+            document.getElementById('btnCompare').innerText = '比對差異';
+        }
+    }
+
+    async function mergeData() {
+        const fileMerge = document.getElementById('fileMerge').files[0];
+        if (!fileMerge) {
+            alert('請先選擇要合併的 Excel 檔案！');
+            return;
+        }
+
+        try {
+            document.getElementById('btnMerge').innerText = '合併計算中...';
+            const rawMerge = await readExcelFile(fileMerge);
+
+            let mergeCount = 0;
+
+            rawMerge.forEach(row => {
+                const id = String(row['項次'] || '').trim();
+                let addedQty = row['實際盤點數量'];
+
+                if (id && addedQty !== undefined && addedQty !== null && addedQty !== '') {
+                    addedQty = Number(addedQty);
+                    if (!isNaN(addedQty)) {
+                        let currentQty = (userCounts[id] !== undefined && userCounts[id] !== '') ? Number(userCounts[id]) : 0;
+                        userCounts[id] = currentQty + addedQty;
+                        mergeCount++;
+                    }
+                }
+            });
+
+            saveState();
+            renderTable();
+            document.getElementById('btnMerge').innerText = '🔄 匯入並加總數量';
+            alert(`✅ 合併成功！共成功加總了 ${mergeCount} 筆有盤點數量的資料。`);
+            document.getElementById('fileMerge').value = '';
+
+        } catch (error) {
+            console.error(error);
+            alert('檔案解析發生錯誤，請確認上傳的是系統匯出的 Excel 檔。');
+            document.getElementById('btnMerge').innerText = '🔄 匯入並加總數量';
+        }
+    }
+
+    function renderTable() {
+        const searchInput = document.getElementById('searchInput');
+        const keyword = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+        let html = `
+            <table>
+                <thead>
+                    <tr>
+                        <th width="10%">項次</th>
+                        <th width="40%">品名</th>
+                        <th width="15%">系統帳面庫存</th>
+                        <th width="15%">實際盤點數量</th>
+                        <th width="20%">盤點差異</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        productsData.forEach((product, index) => {
+            const pId = product.id;
+            const pName = product.name;
+            
+            if (keyword) {
+                if (!pId.toLowerCase().includes(keyword) && !pName.toLowerCase().includes(keyword)) {
+                    return; 
+                }
+            }
+
+            const sysStock = stockData ? (stockData[pId] !== undefined ? stockData[pId] : 0) : '尚未載入';
+            const currentInputValue = userCounts[pId] !== undefined ? userCounts[pId] : '';
+
+            let isTop20 = checkIsTop20(pId, pName);
+            const trClass = isTop20 ? 'top-20-row' : '';
+            const alertBadge = isTop20 ? '<span class="alert-badge">⚠️ 稽查重點</span>' : '';
+
+            html += `
+                <tr class="${trClass}">
+                    <td>${pId}</td>
+                    <td style="text-align: left;">${pName} ${alertBadge}</td>
+                    <td style="color: #7f8c8d;">${sysStock}</td>
+                    <td>
+                        <input type="number" min="0" value="${currentInputValue}" 
+                               oninput="handleInput('${pId}', ${index}, this.value)" 
+                               placeholder="數量">
+                    </td>
+                    <td id="diff-${index}">-</td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table>`;
+        document.getElementById('tableContainer').innerHTML = html;
+
+        if (stockData !== null) {
+            productsData.forEach((product, index) => {
+                const pId = product.id;
+                if (document.getElementById(`diff-${index}`) && userCounts[pId] !== undefined && userCounts[pId] !== '') {
+                    calculateDiffUI(pId, index, userCounts[pId]);
+                }
+            });
+        }
+    }
+
+    function handleInput(pId, index, value) {
+        userCounts[pId] = value;
+        saveState();
+        if (stockData !== null) {
+            calculateDiffUI(pId, index, value);
+        }
+    }
+
+    function calculateDiffUI(pId, index, countValue) {
+        const resultCell = document.getElementById(`diff-${index}`);
+        if (!resultCell) return; 
+
+        const sysStock = stockData[pId] !== undefined ? stockData[pId] : 0;
+
+        if (countValue === '') {
+            resultCell.innerHTML = '-';
+            resultCell.className = '';
+            return;
+        }
+
+        const countStock = Number(countValue);
+        const diff = countStock - sysStock;
+
+        if (diff < 0) {
+            resultCell.innerHTML = `少 ${Math.abs(diff)}`;
+            resultCell.className = 'shortage';
+        } else if (diff > 0) {
+            resultCell.innerHTML = `多 ${diff}`;
+            resultCell.className = 'surplus';
+        } else {
+            resultCell.innerHTML = `相符`;
+            resultCell.className = 'match';
+        }
+    }
+
+    async function exportToExcel() {
+        if (productsData.length === 0) {
+            alert("目前沒有資料可以匯出！");
+            return;
+        }
+
+        const exportData = [];
+
+        productsData.forEach((product) => {
+            const pId = product.id;
+            const sysStock = stockData && stockData[pId] !== undefined ? stockData[pId] : '尚未載入';
+            const countValue = userCounts[pId] !== undefined ? userCounts[pId] : '';
+            
+            let diffResult = '-';
+            if (countValue !== '' && sysStock !== '尚未載入') {
+                const diff = Number(countValue) - Number(sysStock);
+                if (diff < 0) diffResult = `少 ${Math.abs(diff)}`;
+                else if (diff > 0) diffResult = `多 ${diff}`;
+                else diffResult = '相符';
+            }
+
+            const isTop20Str = checkIsTop20(pId, product.name) ? "是" : "否";
+
+            exportData.push({
+                "項次": pId,
+                "品名": product.name,
+                "是否為稽查重點": isTop20Str,
+                "系統帳面庫存": sysStock,
+                "實際盤點數量": countValue,
+                "盤點差異": diffResult
+            });
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "盤點結果");
+
+        const today = new Date();
+        const dateStr = today.getFullYear() + 
+                        String(today.getMonth() + 1).padStart(2, '0') + 
+                        String(today.getDate()).padStart(2, '0');
+        const fileName = `店面盤點結果_${dateStr}.xlsx`;
+
+        try {
+            const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const file = new File([blob], fileName, { type: blob.type });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: '盤點結果',
+                    text: '這是今天的店面盤點結果檔案'
+                });
+            } else {
+                XLSX.writeFile(wb, fileName);
+            }
+        } catch (error) {
+            console.log('分享取消或失敗:', error);
+            if (error.name !== 'AbortError') {
+                XLSX.writeFile(wb, fileName);
+            }
+        }
+    }
+
+    renderTable();
+
+</script>
+
+</body>
+</html>
